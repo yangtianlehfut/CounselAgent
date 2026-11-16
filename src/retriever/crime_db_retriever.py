@@ -1,7 +1,7 @@
 from typing import Dict, List
 
 from src.config import config
-from src.agent.retriever.base_db_retriever import BaseDBRetriever
+from src.retriever.base_db_retriever import BaseDBRetriever
 
 
 class CrimeNotFoundError(LookupError):

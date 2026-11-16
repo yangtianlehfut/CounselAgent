@@ -1,6 +1,6 @@
 from typing import List, Dict, Any, Tuple
 
-from src.agent.retriever.base_db_retriever import BaseDBRetriever
+from src.retriever.base_db_retriever import BaseDBRetriever
 from src.config import config
 
 class LawDBRetriever(BaseDBRetriever):
