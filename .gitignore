@@ -2,3 +2,5 @@
 .recipe
 .idea
 __pycache__/
+
+.env
