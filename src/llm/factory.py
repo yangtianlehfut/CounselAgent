@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import sys
 from enum import StrEnum
 from functools import lru_cache
 
 from langchain_core.language_models import BaseChatModel
 
+from chromadb import EmbeddingFunction
+from chromadb.api import Embeddable
+from src.config import config
 from src.llm.providers import (
     BaseLLMProvider,
     DeepSeekProvider,
@@ -54,3 +58,11 @@ def get_chat_model(scenario: LLMScenario) -> BaseChatModel:
             f"Unknown LLM scenario {scenario!r}; expected one of: {available}"
         ) from exc
     return _get_provider_llm(provider_type)
+
+def get_embedding_function() -> EmbeddingFunction[Embeddable]:
+    if config.EMBEDDING_PROVIDER != "ollama":
+        sys.exit(f"暂不支持的 EMBEDDING_PROVIDER：{config.EMBEDDING_PROVIDER}（目前只支持 ollama）")
+
+    from chromadb.utils.embedding_functions import OllamaEmbeddingFunction
+
+    return OllamaEmbeddingFunction(model_name=config.EMBEDDING_MODEL_NAME)

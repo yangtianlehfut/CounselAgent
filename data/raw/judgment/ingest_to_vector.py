@@ -4,9 +4,10 @@
 判决书摘要向量入库（chromadb 1.5.9）
 
 - 输入：单个 csv，或目录（递归扫描所有 .csv）
-- 向量化对象：abstract_text；记录 id 用 case_id，空案号报错跳过
+- 向量化对象：abstract_text；元数据：cause、case_name、judgment_result、full_text、tags
+- 记录 id 用 case_id，空案号报错跳过
 - 写入：Chroma PersistentClient 本地持久化，余弦距离，按 id upsert，可重复执行
-- 嵌入配置全部来自 src/config.py（目前只支持 ollama）
+- 嵌入模型：由 src.llm.factory.get_embedding_function() 统一提供（配置见 src/config.py，目前只支持 ollama）
 
 用法：
     python ingest_to_vector.py --input ./judgment_text_10 --collection judgments
@@ -25,8 +26,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Tuple
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from src.config import config  # noqa: E402
+from src.llm.factory import get_embedding_function  # noqa: E402
 
 
 def iter_csv_files(input_path: str | Path) -> List[Path]:
@@ -75,7 +77,7 @@ def load_cases(csv_path: Path, stats: Stats, strict: bool = False) -> List[Dict[
         if reader.fieldnames is None:
             stats.problems.append(f"{csv_path.name}: 空文件或无表头")
             return records
-        missing = {"abstract_text", "cause", "case_id", "case_name", "tags", "judgment_result"} - set(reader.fieldnames)
+        missing = {"abstract_text", "cause", "case_id", "case_name", "tags", "judgment_result", "full_text"} - set(reader.fieldnames)
         if missing:
             msg = f"{csv_path.name}: 缺少列 {sorted(missing)}"
             if strict:
@@ -95,6 +97,7 @@ def load_cases(csv_path: Path, stats: Stats, strict: bool = False) -> List[Dict[
                 "cause": (row.get("cause") or "").strip(),
                 "case_name": (row.get("case_name") or "").strip(),
                 "judgment_result": (row.get("judgment_result") or "").strip(),
+                "full_text": (row.get("full_text") or "").strip(),
                 "tags": parse_tags(row.get("tags") or ""),
             }
 
@@ -138,16 +141,6 @@ def sanity_check(records: List[Dict[str, Any]], stats: Stats) -> None:
         print("[check] 校验通过：id 唯一、元数据完整（含 judgment_result）、标签格式合规、摘要字数达标")
 
 
-def build_embedding_function(model_name: str) -> "OllamaEmbeddingFunction":
-    """本地 Ollama 嵌入函数（地址、超时用 ollama 默认配置）；同一个实例既用于写入，也挂到 collection 上供查询时复用。"""
-    if config.EMBEDDING_PROVIDER != "ollama":
-        sys.exit(f"暂不支持的 EMBEDDING_PROVIDER：{config.EMBEDDING_PROVIDER}（目前只支持 ollama）")
-
-    from chromadb.utils.embedding_functions import OllamaEmbeddingFunction
-
-    return OllamaEmbeddingFunction(model_name=model_name)
-
-
 def embed_texts(ef, texts: Iterable[str], batch_size: int = 16, retries: int = 3) -> List[List[float]]:
     """按批次调用本地 Ollama 嵌入；失败时退避重试。"""
     texts = list(texts)
@@ -185,6 +178,7 @@ def to_meta(meta: Dict[str, Any]) -> Dict[str, Any]:
         "cause": meta["cause"],
         "case_name": meta["case_name"],
         "judgment_result": meta["judgment_result"],
+        "full_text": meta["full_text"],
     }
     out["tags"] = list(meta["tags"])
     return out
@@ -242,7 +236,6 @@ def main() -> None:
     ap.add_argument("--persist-dir", default=str(config.VECTOR_DB_PATH), help="Chroma 持久化目录（默认取 config.VECTOR_DB_PATH）")
     ap.add_argument("--collection", default="judgments", help="collection 名称（--per-cause 时忽略）")
     ap.add_argument("--per-cause", action="store_true", help="按 cause 分库，每个案由一个 collection")
-    ap.add_argument("--embed-model", default=config.EMBEDDING_MODEL_NAME, help="嵌入模型（默认取 config.EMBEDDING_MODEL_NAME）")
     ap.add_argument("--embed-batch", type=int, default=config.EMBEDDING_BATCH_SIZE, help="embedding 批次（默认取 config.EMBEDDING_BATCH_SIZE）")
     ap.add_argument("--upsert-batch", type=int, default=100, help="写库批次")
     ap.add_argument("--skip-existing", action="store_true", help="已存在的 id 不再重复向量化（省 embedding 费用）")
@@ -273,8 +266,8 @@ def main() -> None:
         print(records[0])
         return
 
-    ef = build_embedding_function(args.embed_model)
-    print(f"[embed] 使用 {config.EMBEDDING_PROVIDER} / {args.embed_model}")
+    ef = get_embedding_function()
+    print(f"[embed] 使用 {config.EMBEDDING_PROVIDER} / {config.EMBEDDING_MODEL_NAME}")
 
     persist_dir = Path(args.persist_dir).expanduser()
     if args.per_cause:

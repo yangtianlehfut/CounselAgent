@@ -14,5 +14,13 @@ class Config:
 
     # 向量库默认位置
     VECTOR_DB_PATH = Path(os.getenv("VECTOR_DB_PATH", BASE_DIR / "data" / "vector_db"))
+    COLLECTION_NAME = 'judgments'
+
+    # 类案检索召回数量
+    VECTOR_RECALL_SIZE = 5   # 语义召回条数
+    TAG_RECALL_SIZE = 5      # 标签匹配召回条数
+    HYBRID_RESULT_SIZE = 3   # 混合检索 RRF 融合后保留条数
+    VECTOR_RECALL_WEIGHT = 1   # 语义路在 RRF 融合中的权重
+    TAG_RECALL_WEIGHT = 1      # 标签路在 RRF 融合中的权重
 
 config = Config()

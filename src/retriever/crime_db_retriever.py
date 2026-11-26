@@ -1,3 +1,4 @@
+from functools import lru_cache
 from typing import Dict, List
 
 from src.config import config
@@ -14,6 +15,7 @@ class CrimeDBRetriever(BaseDBRetriever):
     def get_db_path(self) -> str:
         return config.CRIME_DB_PATH
 
+    @lru_cache(maxsize=1)
     def get_all_crime(self) -> List[Dict[str, str]]:
         sql = """
         SELECT name, article, constitution, non_constitution
@@ -22,6 +24,11 @@ class CrimeDBRetriever(BaseDBRetriever):
         """
         return super()._query(sql)
 
+    @lru_cache(maxsize=1)
+    def get_all_crime_name(self):
+        return [entry["name"] for entry in self.get_all_crime()]
+
+    @lru_cache(maxsize=10)
     def get_core_factors(self, crime_name: str) -> List[Dict[str, str]]:
         sql = """
         SELECT q.keyword, q.question
