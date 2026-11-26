@@ -31,3 +31,5 @@ class LawDBRetriever(BaseDBRetriever):
         rows = super()._query(sql, tuple(params))
         mapping = {(r["law_name"], r["article_no"]): r for r in rows}
         return [mapping[item] for item in article_queries if item in mapping]
+
+law_db_retriever = LawDBRetriever()

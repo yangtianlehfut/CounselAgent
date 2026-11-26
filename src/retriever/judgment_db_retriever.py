@@ -5,7 +5,7 @@ import chromadb
 from src.config import config
 from src.llm.factory import get_embedding_function
 
-from src.retriever.crime_db_retriever import CrimeDBRetriever, CrimeNotFoundError
+from src.retriever.crime_db_retriever import CrimeNotFoundError, crime_db_retriever
 
 
 class JudgmentRecord(TypedDict):
@@ -45,9 +45,6 @@ def rrf_fuse(
 
     ordered = sorted(scores, key=lambda doc_id: (-scores[doc_id], doc_id))
     return [records[doc_id] for doc_id in ordered[:top_k]]
-
-
-_crime_retriever = CrimeDBRetriever()
 
 
 class JudgmentDBRetriever:
@@ -111,7 +108,7 @@ class JudgmentDBRetriever:
         return rrf_fuse(ranked_lists, config.HYBRID_RESULT_SIZE, weights)
 
     def _ensure_supported_cause(self, cause: str) -> None:
-        if cause not in _crime_retriever.get_all_crime_name():
+        if cause not in crime_db_retriever.get_all_crime_name():
             raise CrimeNotFoundError(cause)
 
     def query_judgments_by_text(self, query: str, cause: str) -> List[JudgmentRecord]:
@@ -162,3 +159,5 @@ class JudgmentDBRetriever:
 
         scored.sort(key=lambda item: (-item[0], item[1]))
         return [item[2] for item in scored[: config.TAG_RECALL_SIZE]]
+
+judgment_db_retriever = JudgmentDBRetriever()

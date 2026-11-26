@@ -26,7 +26,7 @@ from src.agent.case_detail import (
     Intent,
     case_detail_subgraph,
 )
-from src.agent.prompts import LEGAL_AI_DISCLAIMER
+from src.agent.prompts import LEGAL_AI_DISCLAIMER, UNSUPPORTED_CAUSE_NOTICE
 from src.agent.tools import LAW_QUERY_TOOLS
 from src.logger import get_logger
 
@@ -41,10 +41,10 @@ class AgentState(TypedDict, total=False):
     user_query: str
     intent: Intent
 
-    case_description: str
     case_results: list[dict[str, Any]]
 
-    cause_of_action: str
+    cause_name: str
+    cause_supported: bool
     core_factors: list[str]
     missing_factors: list[str]
     user_answers: dict[str, str]
@@ -96,9 +96,22 @@ def recognize_intent_node(state: AgentState) -> dict[str, Any]:
     return {"intent": "default"}
 
 
+def _unsupported_cause_note(state: AgentState) -> str | None:
+    """Return the user-facing note for an unsupported cause of action."""
+    if state.get("cause_supported") is not False:
+        return None
+    if state.get("intent") not in {"case_search", "case_analysis"}:
+        return None
+    cause_name = (state.get("cause_name") or "").strip() or "无法确定的案由"
+    return UNSUPPORTED_CAUSE_NOTICE.format(cause_name=cause_name)
+
+
 def default_chat_node(state: AgentState) -> dict[str, Any]:
     """Reply through a tool-free agent without using any workflow branch."""
-    messages = state.get("messages", [])
+    messages = list(state.get("messages", []))
+    if state.get("cause_supported") is False:
+        logger.info("Default chat answers an unsupported cause")
+
     result = get_default_chat_agent().invoke({"messages": messages})
 
     reply = next(
@@ -155,9 +168,12 @@ def output_node(state: AgentState) -> dict[str, Any]:
     if not model_response:
         raise RuntimeError("Output node received no model response")
 
-    final_response = (
-        f"{model_response.rstrip()}\n\n---\n\n{LEGAL_AI_DISCLAIMER}"
-    )
+    body = model_response.rstrip()
+    note = _unsupported_cause_note(state)
+    if note:
+        body = f"{body}\n\n{note}"
+
+    final_response = f"{body}\n\n---\n\n{LEGAL_AI_DISCLAIMER}"
     logger.info("Final response generated")
     return {"final_response": final_response}
 
@@ -179,6 +195,13 @@ def _route_by_intent(state: AgentState) -> str:
 
 def _route_after_case_detail(state: AgentState) -> str:
     """Resume the feature that invoked the shared detail subgraph."""
+    if state.get("cause_supported") is False:
+        logger.info(
+            "Cause of action %r is unsupported; fall back to default chat",
+            state.get("cause_name"),
+        )
+        return "default_chat"
+
     if state.get("intent") == "case_search":
         return "case_search"
     return "comprehensive_analysis"

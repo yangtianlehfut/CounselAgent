@@ -47,3 +47,5 @@ class CrimeDBRetriever(BaseDBRetriever):
             if row["keyword"] is not None
         ]
 
+
+crime_db_retriever = CrimeDBRetriever()

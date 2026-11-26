@@ -28,15 +28,17 @@ class LLMScenario(StrEnum):
     CASE_SEARCH = "case_search"
     CASE_ANALYSIS = "case_analysis"
     SUMMARIZATION = "summarization"
+    CAUSE_ANALYSIS = "cause_analysis"
 
 
 SCENARIO_PROVIDERS: dict[LLMScenario, type[BaseLLMProvider]] = {
-    LLMScenario.DEFAULT: LocalVLLMProvider,
+    LLMScenario.DEFAULT: DeepSeekProvider,
     LLMScenario.INTENT: DeepSeekNonThinkingProvider,
     LLMScenario.LAW_QUERY: DeepSeekProvider,
     LLMScenario.CASE_SEARCH: LocalVLLMProvider,
     LLMScenario.CASE_ANALYSIS: LocalVLLMProvider,
     LLMScenario.SUMMARIZATION: LocalVLLMProvider,
+    LLMScenario.CAUSE_ANALYSIS: DeepSeekNonThinkingProvider,
 }
 
 

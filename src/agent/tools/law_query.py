@@ -7,7 +7,7 @@ from typing import Any
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
-from src.retriever.law_db_retriever import LawDBRetriever
+from src.retriever.law_db_retriever import law_db_retriever
 
 
 class ArticleQuery(BaseModel):
@@ -42,9 +42,6 @@ class GetArticlesInput(BaseModel):
     )
 
 
-_retriever = LawDBRetriever()
-
-
 @tool("get_articles", args_schema=GetArticlesInput)
 def get_articles(queries: list[ArticleQuery]) -> list[str]:
     """按准确的法律名称和中文条文编号批量查询法条原文及其章节信息。
@@ -66,13 +63,13 @@ def get_articles(queries: list[ArticleQuery]) -> list[str]:
         (query.law_name, query.article_no)
         for query in queries
     ]
-    return [row['article_text'] for row in _retriever.get_articles(article_queries)]
+    return [row['article_text'] for row in law_db_retriever.get_articles(article_queries)]
 
 
 @tool("get_all_laws")
 def get_all_laws() -> list[str]:
     """列出法条数据库当前支持查询的法律全称。"""
-    return _retriever.get_all_laws()
+    return law_db_retriever.get_all_laws()
 
 
 LAW_QUERY_TOOLS = (get_articles, get_all_laws)
